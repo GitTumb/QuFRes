@@ -2,8 +2,8 @@ from collections import Counter
 import numpy as np
 from multiprocessing import Pool
 from functools import partial
-from qiskit import Aer,transpile
-
+from qiskit import transpile
+from qiskit_aer import AerSimulator
 
             
 def get_freqs (res, n_outcomes):
@@ -39,12 +39,11 @@ def run_circ(qc,S:int,seed:int=None)->np.ndarray:
     """
     
     backend_options = {"seed_simulator": seed} if seed is not None else {} #Optional: set seed for simulations
-    simulator = Aer.get_backend('aer_simulator') #Instantiate simulator
+    simulator = AerSimulator() #Instantiate simulator
     
     qc = transpile(qc, simulator) #Transpile circuit
 
-    
-    job = simulator.run(qc, shots = S, run_options=backend_options,memory=True) #Run simulation, collect raw measurement outcomes
+    job = simulator.run(circuits=qc, shots = S, run_options=backend_options,memory=True) #Run simulation, collect raw measurement outcomes
     outcomes = [int( m,2) for m in job.result().get_memory()] #Convert measurment outcomes (bitstrings) into integers
     
     out_freqs = get_freqs(outcomes,qc.num_clbits)
@@ -63,7 +62,7 @@ def patch_run_circ(qcs,S:int,seed:int=None,num_workers=4):
     return results
 
 
-def vec2sig(freqs,d,norm):
+def vec2sig(d,freqs,norm):
 
     """
     Reconstructs a signal from the measurement outcomes of a quantum circuit simulation.
@@ -86,7 +85,7 @@ def vec2sig(freqs,d,norm):
     return out_sig
 
 
-def patch_vec2sig(patch_freqs, d, norm, num_workers=4):
+def patch_vec2sig(d,patch_freqs,norms, num_workers=4):
     """
     Reconstructs a signal from the measurement results of multiple quantum circuits,
     each corresponding to a signal patch, using parallel processing.
@@ -100,12 +99,12 @@ def patch_vec2sig(patch_freqs, d, norm, num_workers=4):
     Returns:
     - np.ndarray: Reconstructed signal patches in parallel.
     """
-    # Fixing d and norm 
-    partial_vec2sig = partial(vec2sig, d=d, norm=norm)
+    
+    data = [(d, patch, norm) for patch, norm in zip(patch_freqs, norms)]
 
-    #Parallel execution
+    # Parallel execution
     with Pool(processes=num_workers) as pool:
-        out_patches = pool.map(partial_vec2sig, patch_freqs) #parallelization on elements of a list
+        out_patches = pool.starmap(vec2sig, data)
 
     return np.array(out_patches)
 

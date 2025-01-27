@@ -117,16 +117,17 @@ def encode(signal, patch_shape=None):
 
     if len(axes)==len(patches.shape):
         norms = np.sum(patches)
-        
+        with np.errstate(divide='ignore', invalid='ignore'):
+            tmp = patches/norms
+            tmp[np.isinf(tmp)] = 0  # norm 0 implies all entries are 0, so it's 0/0
+
     
     else:
         #norms = np.sum(patches,axis=axes).reshape(patches.shape[0],*(2*(1,)))
         norms = np.sum(patches,axis=axes)
-    
-
-    with np.errstate(divide='ignore', invalid='ignore'):
-        tmp = patches/norms[:,*(d*(None,))]
-        tmp[np.isinf(tmp)] = 0  # norm 0 implies all entries are 0, so it's 0/0
+        with np.errstate(divide='ignore', invalid='ignore'):
+            tmp = patches/norms[:,*(d*(None,))]
+            tmp[np.isinf(tmp)] = 0  # norm 0 implies all entries are 0, so it's 0/0
     
     
 

@@ -1,6 +1,5 @@
 import numpy as np
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
-from qiskit import transpile, Aer
 from qiskit.circuit.library import QFT
 from encoding import StateVector,get_numQubits
 

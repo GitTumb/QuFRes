@@ -1,6 +1,4 @@
-import numpy as np
-from operator import add
-from encoding import encode, patchify, depatchify
+from encoding import encode, depatchify,get_numQubits
 from processing import circuit_builder, QuDownsample, QuDownsample_2D, QuDownsample_MD, QUpsample_MD
 from postprocessing import *
 
@@ -35,6 +33,7 @@ class Resampling_Sim:
         - params (dict, optional): Parameters for the quantum circuits.
 
         """
+        self._input_size = get_numQubits(signal)
         self._states, self._norms = encode(signal, patch_shape=patch_shape)
         self._patch_shape = patch_shape
         self._task = task
@@ -76,9 +75,9 @@ class Resampling_Sim:
         - logbook['shots']: Increases the total number of shots.
         """
         if self._isPatched and 'shots' in self._logbook:
-            new = patch_run_circ(self._circuits, S=shots, seed=seed)
-            old = self._logbook['frequencies']
-            self._logbook['frequencies'] = (old * self._logbook['shots'] + new * shots) / (self._logbook['shots'] + shots)
+            new = [f*shots for f in  patch_run_circ(self._circuits, S=shots, seed=seed)]
+            old = [f*self._logbook['shots'] for f in self._logbook['frequencies']]
+            self._logbook['frequencies'] = [(x+y)/(self._logbook['shots'] + shots) for x,y in zip(new,old)]
             self._logbook['shots'] += shots
 
         elif not self._isPatched and 'shots' in self._logbook:
@@ -98,6 +97,7 @@ class Resampling_Sim:
             self._logbook['shots'] = shots
 
         print('Simulation completed.')
+        return True
 
     def reconstruct(self):
         """
@@ -114,16 +114,22 @@ class Resampling_Sim:
 
         if self._isPatched:
             d = len(self._logbook['frequencies'][0].shape)
-            out_sig = patch_vec2sig(self._logbook['frequencies'], d, self._norms)
+            out_sig = patch_vec2sig(d=d, patch_freqs = self._logbook['frequencies'],norms=self._norms)
             shape = tuple(out_sig.shape[0]*x for x in out_sig.shape[1:])
 
         else:
             d = len(self._logbook['frequencies'].shape)
-            out_sig = vec2sig(self._logbook['frequencies'], d, self._norms)
+            out_sig = vec2sig(d=d, freqs=self._logbook['frequencies'], norm=self._norms)
             shape = out_sig.shape
             
         
+        #Eprint(get_numQubits(out_sig)-self._input_size)
         self._sig = depatchify(out_sig,out_shape=shape)
+        self._output_size =  get_numQubits(self._sig)
+        norm_factor = 2**(self._output_size-self._input_size)  #renormalize by factor 2**(nTilde)
+        self._sig = self._sig*norm_factor
+        print('Signal successfully reconstructed!')
+        return True
 
 
 
